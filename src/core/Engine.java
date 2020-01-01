@@ -2,14 +2,16 @@ package core;
 
 import core.display.EngineFrame;
 import core.geometry.Vector;
+import core.geometry3d.matrix.Mat4x4;
 import core.gfx.EngineGraphics;
+import core.image.Image;
 import core.input.KeyManager;
 
-import javax.swing.*;
+import javax.imageio.ImageIO;
 import java.awt.*;
-import java.awt.event.KeyEvent;
-import java.awt.event.KeyListener;
 import java.awt.image.BufferedImage;
+import java.io.File;
+import java.io.IOException;
 
 public abstract class Engine implements EngineConstants, Runnable {
     private boolean
@@ -23,21 +25,24 @@ public abstract class Engine implements EngineConstants, Runnable {
 
     public Handler
         EngineHandler;
+
     private EngineGraphics
         EngineGFX;
+
     private KeyManager
         InputManager;
+
     public float
-        deltaTime;
+        deltaTime,
+        frameRate = DEFAULT_FPS;
 
     public int
         width,
         height,
         frameCount;
-    float
-        frameRate = DEFAULT_FPS;
+
     String
-        frameTitle = "";
+        frameTitle;
 
     public Engine(String FRAME_TITLE, int FRAME_WIDTH, int FRAME_HEIGHT) {
         this.width = FRAME_WIDTH;
@@ -132,9 +137,36 @@ public abstract class Engine implements EngineConstants, Runnable {
 
 
     //Engine functions
-
+    public BufferedImage loadBufferedImage(String path){
+        try {
+            return ImageIO.read(new File(path));
+        } catch (IOException e) {
+            e.printStackTrace();
+            System.exit(1);
+        }
+        return null;
+    }
+    public Image loadImage(String path) {
+        try {
+            return new Image(ImageIO.read(new File(path)));
+        } catch (IOException e) {
+            e.printStackTrace();
+            System.exit(1);
+        }
+        return null;
+    }
     public void frameRate(float fps) {
         frameRate += fps <= MAX_FPS ? fps : MAX_FPS - frameRate;
+    }
+    public void drawImg(Image img, int x, int y, int width, int height) {
+        if (EngineGFX.getGFX() != null) {
+            EngineGFX.getGFX().drawImage(img.getBufferedImage(),x,y,width,height,null);
+        }
+    }
+    public void drawImg(BufferedImage img, int x, int y, int width, int height) {
+        if (EngineGFX.getGFX() != null) {
+            EngineGFX.getGFX().drawImage(img,x,y,width,height,null);
+        }
     }
     public void triangle(int x1, int y1, int x2, int y2, int x3, int y3) {
         if (EngineGFX.getGFX() != null) {
@@ -149,6 +181,12 @@ public abstract class Engine implements EngineConstants, Runnable {
                         ypoints = {y1, y2, y3};
                 EngineGFX.getGFX().fillPolygon(xpoints, ypoints, 3);
             }
+        }
+    }
+    public void line(int x1, int y1, int x2, int y2) {
+        if (EngineGFX.getGFX() != null) {
+            EngineGFX.getGFX().setColor(EngineGFX.getLastColor());
+            EngineGFX.getGFX().drawLine(x1,y1,x2,y2);
         }
     }
     public void rect(int x, int y, int width, int height) {
@@ -225,57 +263,96 @@ public abstract class Engine implements EngineConstants, Runnable {
     public boolean getKey(int keyCode) {
         return InputManager.Keys[keyCode];
     }
-
     //Vector functions
-    public Vector VectorSub(Vector vector1, Vector vector2) {
-        return new Vector(vector1.getX() - vector2.getX(), vector1.getY() - vector2.getY(), vector1.getZ() - vector2.getZ());
-    }
-
-    public Vector VectorAdd(Vector vector1, Vector vector2) {
-        return new Vector(vector1.getX() + vector2.getX(), vector1.getY() + vector2.getY(), vector1.getZ() + vector2.getZ());
-    }
-
-    public Vector VectorMultiply(Vector vector1, float k) {
-
-        return new Vector(vector1.getX() * k, vector1.getY() * k, vector1.getZ() * k);
-    }
-
-    public Vector VectorDivide(Vector vector1, float k) {
-        return new Vector(vector1.getX() / k, vector1.getY() / k, vector1.getZ() / k);
-    }
-
-    public Vector VectorNormalize(Vector vector1) {
-        float length = VectorLength(vector1);
-        return new Vector(vector1.getX() / length, vector1.getY() / length, vector1.getZ() / length);
-    }
-    public Vector CrossProduct(Vector vector1, Vector vector2) {
-        Vector tempVector = new Vector(0,0,0);
-        tempVector.setX(vector1.getY() * vector2.getZ() - vector1.getZ() * vector2.getY());
-        tempVector.setY(vector1.getZ() * vector2.getX() - vector1.getX() * vector2.getZ());
-        tempVector.setZ(vector1.getX() * vector2.getY() - vector1.getY() * vector2.getX());
-        return tempVector;
-    }
-
     public Vector IntersectionPlane(Vector plane_p, Vector plane_n, Vector lineStart, Vector lineEnd) {
-        plane_n = VectorNormalize(plane_n);
+        plane_n.normalize();
 
-        float plane_d = -VectorDotProduct(plane_n, plane_p);
-        float ad = VectorDotProduct(lineStart, plane_n);
-        float bd = VectorDotProduct(lineEnd, plane_n);
+        float plane_d = -plane_n.DotProduct(plane_p);
+        float ad = lineStart.DotProduct(plane_n);
+        float bd = lineEnd.DotProduct(plane_n);
         float t = (-plane_d - ad) / (bd - ad);
 
-        Vector lineStartToEnd = VectorSub(lineEnd, lineStart);
-        Vector lineToIntersect = VectorMultiply(lineStartToEnd, t);
-        return VectorAdd(lineStart, lineToIntersect);
+        Vector lineStartToEnd = lineEnd.sub(lineStart);
+        Vector lineToIntersect = lineStartToEnd.multiply(t);
+        return lineStart.add(lineToIntersect);
     }
-    public float VectorDotProduct(Vector vector1, Vector vector2) {
-        return vector1.getX() * vector2.getX() + vector1.getY() * vector2.getY() + vector1.getZ() * vector2.getZ();
+
+    //Matrix functions
+        static Mat4x4 MatrixIdentity() {
+        Mat4x4 matrix = new Mat4x4();
+
+        matrix.setMat(0,0,1);
+        matrix.setMat(1,1,1);
+        matrix.setMat(2,2,1);
+        matrix.setMat(3,3,1);
+        return matrix;
     }
-    public float VectorLength(Vector vector1) {
-        return (float)(Math.sqrt(VectorDotProduct(vector1, vector1)));
+    static Mat4x4 MatrixRotateX(float angle) {
+        Mat4x4 matrix = new Mat4x4();
+
+        matrix.setMat(0,0,1);
+        matrix.setMat(1,1,(float) Math.cos(angle));
+        matrix.setMat(1,2,(float) Math.sin(angle));
+        matrix.setMat(2,1,(float) -Math.sin(angle));
+        matrix.setMat(2,2,(float) Math.cos(angle));
+        matrix.setMat(3,3,1);
+
+        return matrix;
     }
-    public float dist(Vector vector1, Vector plane_n, Vector plane_p) {
-        vector1 = VectorNormalize(vector1);
-        return (plane_n.getX() * vector1.getX() + plane_n.getY() * vector1.getY() + plane_n.getZ() * vector1.getZ() - VectorDotProduct(plane_n, plane_p));
+
+    static Mat4x4 MatrixRotateY(float angle) {
+        Mat4x4 matrix = new Mat4x4();
+
+        matrix.setMat(0,0,(float) Math.cos(angle));
+        matrix.setMat(0,2,(float) Math.sin(angle));
+        matrix.setMat(2,0,(float) -Math.sin(angle));
+        matrix.setMat(1,1,1);
+        matrix.setMat(2,2,(float) Math.cos(angle));
+        matrix.setMat(3,3,1);
+
+        return matrix;
+    }
+
+    static Mat4x4 MatrixRotateZ(float angle) {
+        Mat4x4 matrix = new Mat4x4();
+
+        matrix.setMat(0,0,(float) Math.cos(angle));
+        matrix.setMat(0,1,(float) Math.sin(angle));
+        matrix.setMat(1,0,(float) -Math.sin(angle));
+        matrix.setMat(1,1,(float) Math.cos(angle));
+        matrix.setMat(2,2,1);
+        matrix.setMat(3,3,1);
+
+        return matrix;
+    }
+
+    static Mat4x4 MatrixTranslate(float x, float y, float z) {
+        Mat4x4 matrix = new Mat4x4();
+
+        matrix.setMat(0,0,1);
+        matrix.setMat(1,1,1);
+        matrix.setMat(2,2,1);
+        matrix.setMat(3,3,1);
+
+        matrix.setMat(3,0,x);
+        matrix.setMat(3,1,y);
+        matrix.setMat(3,2,z);
+
+        return matrix;
+    }
+
+    static Mat4x4 MatrixProject(float fovDegrees, float aspectRatio, float far, float near) {
+        float fovRad = (float) (1.0f / Math.tan(fovDegrees * 0.5f / 180.0f * Math.PI));
+
+        Mat4x4 matrix = new Mat4x4();
+
+        matrix.setMat(0,0,aspectRatio * fovRad);
+        matrix.setMat(1,1, fovRad);
+        matrix.setMat(2,2, far / (far - near));
+        matrix.setMat(3,2, (-far * near) / (far - near));
+        matrix.setMat(2,3, 1.0f);
+        matrix.setMat(3,3, 0.0f);
+
+        return matrix;
     }
 }

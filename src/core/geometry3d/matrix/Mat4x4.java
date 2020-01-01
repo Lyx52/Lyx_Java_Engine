@@ -28,15 +28,15 @@ public class Mat4x4 {
         return vTemp;
     }
     //Convert to local functions
-//    static Mat4x4 MatrixMultiplyMatrix(Mat4x4 mat1, Mat4x4 mat2) {
-//        Mat4x4 matrix = new Mat4x4();
-//
-//        for (int col = 0; col < 4; col++)
-//            for (int row = 0; row < 4; row++)
-//                matrix.setMat(row,col, mat1.getMat()[row][0] * mat2.getMat()[0][col] + mat1.getMat()[row][1] * mat2.getMat()[1][col] + mat1.getMat()[row][2] * mat2.getMat()[2][col] + mat1.getMat()[row][3] * mat2.getMat()[3][col]);
-//
-//        return matrix;
-//    }
+    public Mat4x4 MatrixMultiplyMatrix(Mat4x4 mat1, Mat4x4 mat2) {
+        Mat4x4 matrix = new Mat4x4();
+
+        for (int col = 0; col < 4; col++)
+            for (int row = 0; row < 4; row++)
+                matrix.setMat(row,col, mat1.getMat()[row][0] * mat2.getMat()[0][col] + mat1.getMat()[row][1] * mat2.getMat()[1][col] + mat1.getMat()[row][2] * mat2.getMat()[2][col] + mat1.getMat()[row][3] * mat2.getMat()[3][col]);
+
+        return matrix;
+    }
 //
 //    static Mat4x4 MatrixIdentity() {
 //        Mat4x4 matrix = new Mat4x4();
