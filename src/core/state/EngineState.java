@@ -3,7 +3,7 @@ package core.state;
 import core.Handler;
 
 public abstract class EngineState {
-    private Handler
+    public Handler
             handler;
 
     public EngineState(Handler handler) {

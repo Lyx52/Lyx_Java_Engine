@@ -2,10 +2,11 @@ package core;
 
 import core.display.EngineFrame;
 import core.geometry.Vector;
-import core.geometry3d.matrix.Mat4x4;
 import core.gfx.EngineGraphics;
 import core.image.Image;
 import core.input.KeyManager;
+import core.input.MouseManager;
+import core.state.EngineState;
 
 import javax.imageio.ImageIO;
 import java.awt.*;
@@ -22,7 +23,8 @@ public abstract class Engine implements EngineConstants, Runnable {
 
     private EngineFrame
         Display;
-
+    private EngineState
+        currentState;
     public Handler
         EngineHandler;
 
@@ -31,7 +33,8 @@ public abstract class Engine implements EngineConstants, Runnable {
 
     private KeyManager
         InputManager;
-
+    private MouseManager
+        mouseManager;
     public float
         deltaTime,
         frameRate = DEFAULT_FPS;
@@ -39,7 +42,9 @@ public abstract class Engine implements EngineConstants, Runnable {
     public int
         width,
         height,
-        frameCount;
+        frameCount,
+        mouseX,
+        mouseY;
 
     String
         frameTitle;
@@ -54,7 +59,9 @@ public abstract class Engine implements EngineConstants, Runnable {
     private void initEngine () {
         Display = new EngineFrame(frameTitle, width, height);
         InputManager = new KeyManager();
+        mouseManager = new MouseManager();
 
+        Display.getFrame().addMouseListener(mouseManager);
         Display.getFrame().addKeyListener(InputManager);
 
         EngineHandler = new Handler(this);
@@ -94,7 +101,14 @@ public abstract class Engine implements EngineConstants, Runnable {
 
         stop();
     }
+    public void setCurrentState(EngineState state) {
+        currentState = state;
+    }
     private void EngineTick() {
+        mouseX = MouseInfo.getPointerInfo().getLocation().x;
+        mouseY = MouseInfo.getPointerInfo().getLocation().y;
+        if (currentState != null)
+            currentState.OnTick();
         OnTick();
     }
     private void EngineRender() {
@@ -104,7 +118,12 @@ public abstract class Engine implements EngineConstants, Runnable {
             EngineGFX.getEngine().getDisplay().getCanvas().createBufferStrategy(EngineGFX.getNumBuffers());
             return;
         }
+        if (EngineGFX.getGFX() != null)
+            EngineGFX.getGFX().clearRect(0,0,width,height); //REPLACES BACKGROUND FOR NOW
         EngineGFX.setGFX(EngineGFX.getBufferStrategy().getDrawGraphics());
+
+        if (currentState != null)
+            currentState.OnRender();
 
         OnRender();
 
@@ -119,7 +138,6 @@ public abstract class Engine implements EngineConstants, Runnable {
         EngineThread = new Thread(this);
         EngineThread.start();
     }
-
     public synchronized void stop () {
         if (!isRunning)
             return;
@@ -156,7 +174,7 @@ public abstract class Engine implements EngineConstants, Runnable {
         return null;
     }
     public void frameRate(float fps) {
-        frameRate += fps <= MAX_FPS ? fps : MAX_FPS - frameRate;
+        frameRate = Math.min(fps, MAX_FPS);
     }
     public void drawImg(Image img, int x, int y, int width, int height) {
         if (EngineGFX.getGFX() != null) {
@@ -221,18 +239,19 @@ public abstract class Engine implements EngineConstants, Runnable {
             } else EngineGFX.getGFX().fillArc(x,y,width,length,startAngle,arcAngle);
         }
     }
-    public void background(Color c) {
-        if (EngineGFX.getGFX() != null) {
-            EngineGFX.getGFX().setColor(c);
-            EngineGFX.getGFX().fillRect(0, 0, this.width, this.height);
-        }
-    }
-    public void background(int r, int g, int b) {
-        if (EngineGFX.getGFX() != null) {
-            EngineGFX.getGFX().setColor(Color.getHSBColor(r, g, b));
-            EngineGFX.getGFX().fillRect(0, 0, this.width, this.height);
-        }
-    }
+    //FIX ITS NOT WORKING...
+    //    public void background(Color c) {
+//        if (EngineGFX.getGFX() != null) {
+//            EngineGFX.getGFX().setColor(c);
+//            EngineGFX.getGFX().clearRect(0, 0, this.width, this.height);
+//        }
+//    }
+//    public void background(int r, int g, int b) {
+//        if (EngineGFX.getGFX() != null) {
+//            EngineGFX.getGFX().setColor(Color.getHSBColor(r, g, b));
+//            EngineGFX.getGFX().clearRect(0, 0, this.width, this.height);
+//        }
+//    }
     public void background(BufferedImage img) {
         if (EngineGFX.getGFX() != null) {
             EngineGFX.getGFX().drawImage(img, 0,0, this.width, this.height, null);
@@ -249,7 +268,44 @@ public abstract class Engine implements EngineConstants, Runnable {
     }
 
     //GET FUNCTIONS
+    public Vector lineIntersect(Vector p0, Vector p1, Vector p2, Vector p3) {
+        float
+            A1 = p1.y - p0.y,
+            B1 = p0.x - p1.x,
+            C1 = A1 * p0.x + B1 * p0.y,
+            A2 = p3.y - p2.y,
+            B2 = p2.x - p3.x,
+            C2 = A2 * p2.x + B2 * p2.y,
+            denominator = A1 * B2 - A2 * B1;
+        if(denominator == 0) {
+            return null;
+        }
+        return new Vector((B2 * C1 - B1 * C2) / denominator, (A1 * C2 - A2 * C1) / denominator);
+    }
+    public Vector segmentIntersect(Vector p0, Vector p1, Vector p2, Vector p3) {
+        float
+            A1 = p1.y - p0.y,
+            B1 = p0.x - p1.x,
+            C1 = A1 * p0.x + B1 * p0.y,
+            A2 = p3.y - p2.y,
+            B2 = p2.x - p3.x,
+            C2 = A2 * p2.x + B2 * p2.y,
+            denominator = A1 * B2 - A2 * B1;
 
+        if(denominator == 0) return null;
+
+        float
+            intersectX = (B2 * C1 - B1 * C2) / denominator,
+            intersectY = (A1 * C2 - A2 * C1) / denominator,
+            rx0 = (intersectX - p0.x) / (p1.x - p0.x),
+            ry0 = (intersectY - p0.y) / (p1.y - p0.y),
+            rx1 = (intersectX - p2.x) / (p3.x - p2.x),
+            ry1 = (intersectY - p2.y) / (p3.y - p2.y);
+
+        if(((rx0 >= 0 && rx0 <= 1) || (ry0 >= 0 && ry0 <= 1)) && ((rx1 >= 0 && rx1 <= 1) || (ry1 >= 0 && ry1 <= 1))) {
+            return new Vector(intersectX, intersectY);
+        } else return null;
+    }
     public EngineFrame getDisplay() {
         return Display;
     }
@@ -259,100 +315,15 @@ public abstract class Engine implements EngineConstants, Runnable {
     public KeyManager getInputManager() {
         return InputManager;
     }
-
+    public void setMouseLocation(Vector vector) {
+        try {
+            Robot r = new Robot();
+            r.mouseMove((int)vector.getX(), (int)vector.getY());
+        } catch (AWTException e) {
+            e.printStackTrace();
+        }
+    }
     public boolean getKey(int keyCode) {
         return InputManager.Keys[keyCode];
-    }
-    //Vector functions
-    public Vector IntersectionPlane(Vector plane_p, Vector plane_n, Vector lineStart, Vector lineEnd) {
-        plane_n.normalize();
-
-        float plane_d = -plane_n.DotProduct(plane_p);
-        float ad = lineStart.DotProduct(plane_n);
-        float bd = lineEnd.DotProduct(plane_n);
-        float t = (-plane_d - ad) / (bd - ad);
-
-        Vector lineStartToEnd = lineEnd.sub(lineStart);
-        Vector lineToIntersect = lineStartToEnd.multiply(t);
-        return lineStart.add(lineToIntersect);
-    }
-
-    //Matrix functions
-        static Mat4x4 MatrixIdentity() {
-        Mat4x4 matrix = new Mat4x4();
-
-        matrix.setMat(0,0,1);
-        matrix.setMat(1,1,1);
-        matrix.setMat(2,2,1);
-        matrix.setMat(3,3,1);
-        return matrix;
-    }
-    static Mat4x4 MatrixRotateX(float angle) {
-        Mat4x4 matrix = new Mat4x4();
-
-        matrix.setMat(0,0,1);
-        matrix.setMat(1,1,(float) Math.cos(angle));
-        matrix.setMat(1,2,(float) Math.sin(angle));
-        matrix.setMat(2,1,(float) -Math.sin(angle));
-        matrix.setMat(2,2,(float) Math.cos(angle));
-        matrix.setMat(3,3,1);
-
-        return matrix;
-    }
-
-    static Mat4x4 MatrixRotateY(float angle) {
-        Mat4x4 matrix = new Mat4x4();
-
-        matrix.setMat(0,0,(float) Math.cos(angle));
-        matrix.setMat(0,2,(float) Math.sin(angle));
-        matrix.setMat(2,0,(float) -Math.sin(angle));
-        matrix.setMat(1,1,1);
-        matrix.setMat(2,2,(float) Math.cos(angle));
-        matrix.setMat(3,3,1);
-
-        return matrix;
-    }
-
-    static Mat4x4 MatrixRotateZ(float angle) {
-        Mat4x4 matrix = new Mat4x4();
-
-        matrix.setMat(0,0,(float) Math.cos(angle));
-        matrix.setMat(0,1,(float) Math.sin(angle));
-        matrix.setMat(1,0,(float) -Math.sin(angle));
-        matrix.setMat(1,1,(float) Math.cos(angle));
-        matrix.setMat(2,2,1);
-        matrix.setMat(3,3,1);
-
-        return matrix;
-    }
-
-    static Mat4x4 MatrixTranslate(float x, float y, float z) {
-        Mat4x4 matrix = new Mat4x4();
-
-        matrix.setMat(0,0,1);
-        matrix.setMat(1,1,1);
-        matrix.setMat(2,2,1);
-        matrix.setMat(3,3,1);
-
-        matrix.setMat(3,0,x);
-        matrix.setMat(3,1,y);
-        matrix.setMat(3,2,z);
-
-        return matrix;
-    }
-
-    static Mat4x4 MatrixProject(float fovDegrees, float aspectRatio, float far, float near) {
-        float fovRad = (float) (1.0f / Math.tan(fovDegrees * 0.5f / 180.0f * Math.PI));
-
-        Mat4x4 matrix = new Mat4x4();
-
-        matrix.setMat(0,0,aspectRatio * fovRad);
-        matrix.setMat(1,1, fovRad);
-        matrix.setMat(2,2, far / (far - near));
-        matrix.setMat(3,2, (-far * near) / (far - near));
-        matrix.setMat(2,3, 1.0f);
-        matrix.setMat(3,3, 0.0f);
-
-        return matrix;
     }
 }
